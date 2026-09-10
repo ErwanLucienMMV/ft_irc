@@ -42,7 +42,7 @@ int main(int argc, char **argv)
 	std::string password = argv[2];
 	if (password.empty())
 	{
-		std::cerr << "Error: password must not be empty." << std::endl;
+		std::cerr << "Warning: No password has been set, this is a safety issue, consider it carefully" << std::endl;
 		return 1;
 	}
 
