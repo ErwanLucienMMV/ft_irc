@@ -88,12 +88,15 @@ static void receiveFromClient(int fd, fd_set &master)
 		return;
 	}
 
+
 	std::cout << "----- RECEIVED " << bytes << " BYTES -----" << std::endl;
 	// Print exactly the received bytes: the buffer may not end with '\0'.
 	std::cout.write(buffer, bytes);
 	std::cout << std::endl;
 	std::cout << "--------------------------------" << std::endl;
 }
+
+
 
 void runServer(int server_fd)
 {
