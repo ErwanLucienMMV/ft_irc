@@ -94,6 +94,19 @@ static void receiveFromClient(int fd, fd_set &master)
 	std::cout.write(buffer, bytes);
 	std::cout << std::endl;
 	std::cout << "--------------------------------" << std::endl;
+
+	//Accept the handshake
+	std::string message(buffer, bytes);
+	if (message.find("CAP LS") != std::string::npos)
+	{
+		const char *response = ":localhost CAP * LS :\r\n";
+
+		std::cout << "----- SENDING -----" << std::endl;
+		std::cout << response;
+		std::cout << "-------------------" << std::endl;
+
+		send(fd, response, std::strlen(response), 0);
+	}
 }
 
 
