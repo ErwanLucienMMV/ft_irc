@@ -1,27 +1,26 @@
 #include <iostream>
-#include <cstdlib>
-#include <unistd.h>
+#include <exception>
 #include <string>
 #include "server.hpp"
 
-int parsePort(const char *text)
+static int parsePort(const char *text)
 {
-    int port = 0;
+	int port = 0;
 
-    if (!*text)
-        return -1;
-    while (*text)
-    {
-        if (*text < '0' || *text > '9')
-            return -1;
-        port = port * 10 + (*text - '0');
-        if (port > 65535)
-            return -1;
-        ++text;
-    }
+	if (!*text)
+		return -1;
+	while (*text)
+	{
+		if (*text < '0' || *text > '9')
+			return -1;
+		port = port * 10 + (*text - '0');
+		if (port > 65535)
+			return -1;
+		++text;
+	}
 	if (port == 0)
-		return (-1);
-	return (port);
+		return -1;
+	return port;
 }
 
 int main(int argc, char **argv)
@@ -46,12 +45,18 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	int server_fd = createServer(port);
-	if (server_fd < 0)
+	try
+	{
+		Server server(port, password);
+		if (!server.start())
+			return 1;
+		server.run();
+	}
+	catch (const std::exception &error)
+	{
+		std::cerr << "Error: " << error.what() << std::endl;
 		return 1;
-	std::cout << "Listening on port " << port << std::endl;
-	runServer(server_fd);
-	close(server_fd);
+	}
 
 	return 0;
 }
