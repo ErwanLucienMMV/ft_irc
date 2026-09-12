@@ -18,7 +18,7 @@ CXX = c++
 
 all	: $(NAME)
 
-$(OBJ): includes/server.hpp
+$(OBJ): includes/server.hpp includes/client.hpp
 
 $(NAME)	: $(OBJ)
 	@echo "$(YELLOW)[$(NAME)] $(GREEN).o created $(RESET)"

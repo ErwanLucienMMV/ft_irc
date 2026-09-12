@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstdio>
 #include <cstring>
+#include <utility>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -10,7 +11,22 @@
 
 #define BUFFER_SIZE 4096
 
-int createServer(int port)
+Server::Server(int port, const std::string &password)
+	: _port(port), _password(password), _serverFd(-1), _maxFd(-1)
+{
+	FD_ZERO(&_master);
+}
+
+Server::~Server()
+{
+	for (std::map<int, Client>::const_iterator it = _clients.begin();
+		it != _clients.end(); ++it)
+		close(it->second.fd);
+	if (_serverFd >= 0)
+		close(_serverFd);
+}
+
+int Server::createSocket() const
 {
 	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (server_fd < 0)
@@ -31,7 +47,7 @@ int createServer(int port)
 	std::memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = htons(port);
+	addr.sin_port = htons(_port);
 
 	if (bind(server_fd, (sockaddr *)&addr, sizeof(addr)) < 0)
 	{
@@ -50,53 +66,82 @@ int createServer(int port)
 	return server_fd;
 }
 
-static void acceptClient(int server_fd, fd_set &master, int &max_fd)
+bool Server::start()
+{
+	if (_serverFd >= 0)
+		return true;
+	_serverFd = createSocket();
+	if (_serverFd < 0)
+		return false;
+	FD_SET(_serverFd, &_master);
+	_maxFd = _serverFd;
+	std::cout << "Listening on port " << _port << std::endl;
+	return true;
+}
+
+void Server::acceptClient()
 {
 	sockaddr_in client;
 	socklen_t len = sizeof(client);
-	int client_fd = accept(server_fd, (sockaddr *)&client, &len);
+	int client_fd = accept(_serverFd, (sockaddr *)&client, &len);
 
 	if (client_fd < 0)
 		return;
 
-	FD_SET(client_fd, &master);
-	if (client_fd > max_fd)
-		max_fd = client_fd;
+	try
+	{
+		_clients.insert(std::make_pair(client_fd,
+			Client(client_fd, inet_ntoa(client.sin_addr), ntohs(client.sin_port))));
+	}
+	catch (...)
+	{
+		close(client_fd);
+		throw;
+	}
+
+	FD_SET(client_fd, &_master);
+	if (client_fd > _maxFd)
+		_maxFd = client_fd;
+
+	const Client &connected = _clients.find(client_fd)->second;
 
 	std::cout << "Client connected: "
-		<< inet_ntoa(client.sin_addr)
-		<< ":" << ntohs(client.sin_port)
-		<< " (fd " << client_fd << ")"
+		<< connected.address
+		<< ":" << connected.port
+		<< " (fd " << connected.fd << ")"
 		<< std::endl;
 }
 
-static void disconnectClient(int fd, fd_set &master)
+void Server::disconnectClient(int fd)
 {
 	std::cout << "Client disconnected (fd " << fd << ")" << std::endl;
 	close(fd);
-	FD_CLR(fd, &master);
+	FD_CLR(fd, &_master);
+	_clients.erase(fd);
 }
 
-static void receiveFromClient(int fd, fd_set &master)
+void Server::receiveFromClient(const Client &client)
 {
 	char buffer[BUFFER_SIZE];
-	int bytes = recv(fd, buffer, sizeof(buffer), 0);
+	int bytes = recv(client.fd, buffer, sizeof(buffer), 0);
 
 	if (bytes <= 0)
 	{
-		disconnectClient(fd, master);
+		disconnectClient(client.fd);
 		return;
 	}
-
-
 	std::cout << "----- RECEIVED " << bytes << " BYTES -----" << std::endl;
 	// Print exactly the received bytes: the buffer may not end with '\0'.
 	std::cout.write(buffer, bytes);
 	std::cout << std::endl;
 	std::cout << "--------------------------------" << std::endl;
 
-	//Accept the handshake
-	std::string message(buffer, bytes);
+	handleMessage(client, std::string(buffer, bytes));
+}
+
+void Server::handleMessage(const Client &client, const std::string &message)
+{
+	// Temporary CAP handling; a line parser will replace this substring search.
 	if (message.find("CAP LS") != std::string::npos)
 	{
 		const char *response = ":localhost CAP * LS :\r\n";
@@ -105,36 +150,28 @@ static void receiveFromClient(int fd, fd_set &master)
 		std::cout << response;
 		std::cout << "-------------------" << std::endl;
 
-		send(fd, response, std::strlen(response), 0);
+		send(client.fd, response, std::strlen(response), 0);
 	}
 }
-
-
-
-void runServer(int server_fd)
+void Server::run()
 {
-	fd_set master;
 	fd_set readfds;
-
-	FD_ZERO(&master);
-	FD_SET(server_fd, &master);
-	int max_fd = server_fd;
 
 	while (true)
 	{
-		readfds = master;
-		if (select(max_fd + 1, &readfds, NULL, NULL, NULL) < 0)
+		readfds = _master;
+		if (select(_maxFd + 1, &readfds, NULL, NULL, NULL) < 0)
 			break;
 
-		for (int fd = 0; fd <= max_fd; ++fd)
+		for (int fd = 0; fd <= _maxFd; ++fd)
 		{
 			if (!FD_ISSET(fd, &readfds))
 				continue;
 
-			if (fd == server_fd)
-				acceptClient(server_fd, master, max_fd);
+			if (fd == _serverFd)
+				acceptClient();
 			else
-				receiveFromClient(fd, master);
+				receiveFromClient(_clients.find(fd)->second);
 		}
 	}
 }

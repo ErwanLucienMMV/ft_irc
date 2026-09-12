@@ -35,6 +35,7 @@
 *.lib
 
 # Executables
+/ircserv
 *.exe
 *.out
 *.app
