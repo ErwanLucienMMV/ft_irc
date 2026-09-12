@@ -13,7 +13,7 @@ class Server
 		~Server();
 
 		bool start();
-		void run();
+		bool run();
 
 	private:
 		int _port;
@@ -24,10 +24,11 @@ class Server
 		std::map<int, Client> _clients;
 
 		int createSocket() const;
-		void acceptClient();
+		bool acceptClient();
 		void disconnectClient(int fd);
-		void receiveFromClient(const Client &client);
-		void handleMessage(const Client &client, const std::string &message);
+		bool receiveFromClient(Client &client);
+		void sendToClient(Client &client);
+		bool handleMessage(Client &client, const std::string &message);
 
 		// A Server owns its sockets and must not be copied.
 		Server(const Server &other);

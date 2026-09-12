@@ -50,7 +50,8 @@ int main(int argc, char **argv)
 		Server server(port, password);
 		if (!server.start())
 			return 1;
-		server.run();
+		if (!server.run())
+			return 1;
 	}
 	catch (const std::exception &error)
 	{
