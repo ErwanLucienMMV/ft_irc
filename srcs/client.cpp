@@ -35,12 +35,16 @@ bool Client::appendReceived(const char *data, std::size_t size)
 bool Client::extractLine(std::string &line)
 {
 	std::string::size_type end = _input.find('\n');
+
 	if (end == std::string::npos)
 		return false;
+
 	line = _input.substr(0, end);
+
 	_input.erase(0, end + 1);
 	if (!line.empty() && line[line.size() - 1] == '\r')
 		line.erase(line.size() - 1);
+
 	return true;
 }
 

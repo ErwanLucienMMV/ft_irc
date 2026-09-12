@@ -5,9 +5,7 @@
 #include <utility>
 #include <algorithm>
 #include <cerrno>
-#include <cctype>
 #include <csignal>
-#include <sstream>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -257,30 +255,6 @@ void Server::sendToClient(Client &client)
 	client.consumeOutput(static_cast<std::size_t>(bytes));
 	if (!client.hasPendingOutput() && client.isReadClosed())
 		disconnectClient(client.getFd());
-}
-
-bool Server::handleMessage(Client &client, const std::string &message)
-{
-	// Only CAP LS is implemented here; registration will be added later.
-	std::istringstream input(message);
-	std::string command;
-	std::string subcommand;
-	input >> command >> subcommand;
-	for (std::size_t i = 0; i < command.size(); ++i)
-		command[i] = std::toupper(static_cast<unsigned char>(command[i]));
-	for (std::size_t i = 0; i < subcommand.size(); ++i)
-		subcommand[i] = std::toupper(static_cast<unsigned char>(subcommand[i]));
-
-	if (command == "CAP" && subcommand == "LS")
-	{
-		const char *response = ":localhost CAP * LS :\r\n";
-		if (!client.queueMessage(response))
-			return false;
-		std::cout << "----- QUEUED -----" << std::endl;
-		std::cout << response;
-		std::cout << "------------------" << std::endl;
-	}
-	return true;
 }
 
 bool Server::run()
