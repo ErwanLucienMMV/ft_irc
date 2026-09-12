@@ -169,7 +169,8 @@ bool Server::acceptClient()
 	if (client_fd > _maxFd)
 		_maxFd = client_fd;
 
-	const Client &connected = _clients.find(client_fd)->second;
+	Client &connected = _clients.find(client_fd)->second;
+	connected.setPasswordAccepted(_password.empty());
 
 	std::cout << "Client connected: "
 		<< connected.getAddress()

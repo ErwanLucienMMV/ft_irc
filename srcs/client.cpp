@@ -5,7 +5,8 @@ static const std::size_t MAX_OUTPUT_SIZE = 65536;
 
 Client::Client(int socketFd, const std::string &ip, unsigned short remotePort)
 	: _fd(socketFd), _address(ip), _port(remotePort), _readClosed(false),
-	_ioFailures(0)
+	_ioFailures(0), _passwordAccepted(false), _registered(false),
+	_capNegotiating(false)
 {
 }
 
@@ -23,6 +24,64 @@ unsigned short Client::getPort() const
 {
 	return _port;
 }
+
+const std::string &Client::getNickname() const
+{
+	return _nickname;
+}
+
+const std::string &Client::getUsername() const
+{
+	return _username;
+}
+
+const std::string &Client::getRealname() const
+{
+	return _realname;
+}
+
+bool Client::isPasswordAccepted() const
+{
+	return _passwordAccepted;
+}
+
+bool Client::isRegistered() const
+{
+	return _registered;
+}
+
+bool Client::isCapNegotiating() const
+{
+	return _capNegotiating;
+}
+
+
+void Client::setNickname(const std::string &nickname)
+{
+	_nickname = nickname;
+}
+
+void Client::setUserInfo(const std::string &username, const std::string &realname)
+{
+	_username = username;
+	_realname = realname;
+}
+
+void Client::setPasswordAccepted(bool accepted)
+{
+	_passwordAccepted = accepted;
+}
+
+void Client::setCapNegotiating(bool negotiating)
+{
+	_capNegotiating = negotiating;
+}
+
+void Client::markRegistered()
+{
+	_registered = true;
+}
+
 
 bool Client::appendReceived(const char *data, std::size_t size)
 {
