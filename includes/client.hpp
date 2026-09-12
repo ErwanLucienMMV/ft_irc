@@ -4,16 +4,19 @@
 #include <string>
 
 // Connection data only: Server is responsible for closing the socket.
-struct Client
+class Client
 {
-	int fd;
-	std::string address;
-	unsigned short port;
+	public:
+		Client(int socketFd, const std::string &ip, unsigned short remotePort);
 
-	Client(int socketFd, const std::string &ip, unsigned short remotePort)
-		: fd(socketFd), address(ip), port(remotePort)
-	{
-	}
+		int getFd() const;
+		const std::string &getAddress() const;
+		unsigned short getPort() const;
+
+	private:
+		int _fd;
+		std::string _address;
+		unsigned short _port;
 };
 
 #endif
