@@ -40,6 +40,9 @@
 *.out
 *.app
 
+# Local documentation
+/docs/
+
 # Build directories
 build/
 Build/

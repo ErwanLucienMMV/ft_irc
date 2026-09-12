@@ -21,7 +21,7 @@ Server::~Server()
 {
 	for (std::map<int, Client>::const_iterator it = _clients.begin();
 		it != _clients.end(); ++it)
-		close(it->second.fd);
+		close(it->second.getFd());
 	if (_serverFd >= 0)
 		close(_serverFd);
 }
@@ -106,9 +106,9 @@ void Server::acceptClient()
 	const Client &connected = _clients.find(client_fd)->second;
 
 	std::cout << "Client connected: "
-		<< connected.address
-		<< ":" << connected.port
-		<< " (fd " << connected.fd << ")"
+		<< connected.getAddress()
+		<< ":" << connected.getPort()
+		<< " (fd " << connected.getFd() << ")"
 		<< std::endl;
 }
 
@@ -123,11 +123,11 @@ void Server::disconnectClient(int fd)
 void Server::receiveFromClient(const Client &client)
 {
 	char buffer[BUFFER_SIZE];
-	int bytes = recv(client.fd, buffer, sizeof(buffer), 0);
+	int bytes = recv(client.getFd(), buffer, sizeof(buffer), 0);
 
 	if (bytes <= 0)
 	{
-		disconnectClient(client.fd);
+		disconnectClient(client.getFd());
 		return;
 	}
 	std::cout << "----- RECEIVED " << bytes << " BYTES -----" << std::endl;
@@ -150,7 +150,7 @@ void Server::handleMessage(const Client &client, const std::string &message)
 		std::cout << response;
 		std::cout << "-------------------" << std::endl;
 
-		send(client.fd, response, std::strlen(response), 0);
+		send(client.getFd(), response, std::strlen(response), 0);
 	}
 }
 void Server::run()
