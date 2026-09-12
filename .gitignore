@@ -43,6 +43,9 @@
 # Local documentation
 /docs/
 
+# Local tests
+/tests/
+
 # Build directories
 build/
 Build/
