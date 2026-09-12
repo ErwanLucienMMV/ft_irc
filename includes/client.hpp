@@ -13,6 +13,19 @@ class Client
 		const std::string &getAddress() const;
 		unsigned short getPort() const;
 
+		const std::string &getNickname() const;
+		const std::string &getUsername() const;
+		const std::string &getRealname() const;
+		bool isPasswordAccepted() const;
+		bool isRegistered() const;
+		bool isCapNegotiating() const;
+
+		void setNickname(const std::string &nickname);
+		void setUserInfo(const std::string &username, const std::string &realname);
+		void setPasswordAccepted(bool accepted);
+		void setCapNegotiating(bool negotiating);
+		void markRegistered();
+
 		bool appendReceived(const char *data, std::size_t size);
 		bool extractLine(std::string &line);
 		bool hasIncompleteLineTooLong() const;
@@ -32,6 +45,12 @@ class Client
 		std::string _output;
 		bool _readClosed;
 		unsigned int _ioFailures;
+		std::string _nickname;
+		std::string _username;
+		std::string _realname;
+		bool _passwordAccepted;
+		bool _registered;
+		bool _capNegotiating;
 };
 
 #endif

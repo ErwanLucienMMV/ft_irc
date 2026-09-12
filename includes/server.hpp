@@ -38,6 +38,9 @@ class Server
 		void disconnectClient(int fd);
 		bool receiveFromClient(Client &client);
 		void sendToClient(Client &client);
+		bool reply(Client &client, const std::string &code,
+			const std::string &parameters);
+		bool isNicknameAvailable(const std::string &nickname, int excludedFd) const;
 		bool handleMessage(Client &client, const std::string &message);
 		bool handleCap(Client &client, const Command &command);
 		bool handlePass(Client &client, const Command &command);
