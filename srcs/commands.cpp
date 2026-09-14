@@ -123,6 +123,24 @@ bool Server::isNicknameAvailable(const std::string &nickname, int excludedFd) co
 	return true;
 }
 
+bool Server::tryRegister(Client &client)
+{
+	if (client.isRegistered())
+		return false;
+
+	if (!client.isPasswordAccepted())
+		return false;
+
+	if (client.getNickname().empty())
+		return false;
+
+	if (client.getUsername().empty())
+		return false;
+
+	client.markRegistered();
+	return reply(client, "001", ":Welcome to the IRC Network");
+}
+
 bool Server::handlePass(Client &client, const Command &command)
 {
 	if (client.isRegistered())
@@ -133,6 +151,7 @@ bool Server::handlePass(Client &client, const Command &command)
 	client.setPasswordAccepted(_password.empty() || _password == command.params[0]);
 	if (!client.isPasswordAccepted())
 		return reply(client, "464", ":Password incorrect");
+	tryRegister(client);
 	return true;
 }
 
@@ -147,6 +166,7 @@ bool Server::handleNick(Client &client, const Command &command)
 	if (!isNicknameAvailable(nickname, client.getFd()))
 		return reply(client, "433", nickname + " :Nickname is already in use");
 	client.setNickname(nickname);
+	tryRegister(client);
 	return true;
 }
 
@@ -159,6 +179,7 @@ bool Server::handleUser(Client &client, const Command &command)
 	if (!isValidUsername(command.params[0]))
 		return reply(client, "461", "USER :Invalid username");
 	client.setUserInfo(command.params[0], command.params[3]);
+	tryRegister(client);
 	return true;
 }
 
