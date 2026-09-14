@@ -488,6 +488,8 @@ bool Server::handleKick(Client &client, const Command &command)
 		+ channel->getName() + " " + target->getNickname() + " :" + reason,
 		-1, client.getFd());
 	channel->removeMember(targetFd);
+	if (channel->isEmpty())
+		_channels.erase(foldName(channel->getName()));
 	return sent;
 }
 
