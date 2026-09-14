@@ -587,12 +587,12 @@ bool Server::handleMode(Client &client, const Command &command)
 			updated.setTopicRestricted(adding);
 		else if (modes[i] == 'k')
 		{
+			// Both +k and -k consume a key parameter.
+			if (parameter >= command.params.size() || command.params[parameter].empty())
+				return reply(client, "461", "MODE :Not enough parameters");
+			const std::string &key = command.params[parameter++];
 			if (adding)
-			{
-				if (parameter >= command.params.size() || command.params[parameter].empty())
-					return reply(client, "461", "MODE :Not enough parameters");
-				updated.setKey(command.params[parameter++]);
-			}
+				updated.setKey(key);
 			else
 				updated.setKey("");
 		}
