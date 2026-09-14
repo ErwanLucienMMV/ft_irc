@@ -61,7 +61,7 @@ static bool configureSocket(int fd)
 }
 
 Server::Server(int port, const std::string &password)
-	: _port(port), _password(password), _serverFd(-1), _maxFd(-1)
+	: _port(port), _password(password), _serverFd(-1), _maxFd(-1), _acceptPaused(false)
 {
 	FD_ZERO(&_master);
 }
@@ -143,6 +143,12 @@ bool Server::acceptClient()
 
 	if (client_fd < 0)
 	{
+		if (errno == EMFILE || errno == ENFILE || errno == ENOBUFS
+			|| errno == ENOMEM)
+		{
+			_acceptPaused = true;
+			return true;
+		}
 		if (errno == EAGAIN || errno == EWOULDBLOCK
 			|| errno == EINTR || errno == ECONNABORTED)
 			return true;
@@ -211,6 +217,7 @@ void Server::disconnectClient(int fd)
 			sendLine(recipient->second, quitMessage);
 	}
 	close(fd);
+	_acceptPaused = false;
 	FD_CLR(fd, &_master);
 	_clients.erase(fd);
 	_maxFd = _serverFd;
@@ -293,6 +300,8 @@ bool Server::run()
 	while (!stopRequested)
 	{
 		fd_set readfds = _master;
+		if (_acceptPaused)
+			FD_CLR(_serverFd, &readfds);
 		fd_set writefds;
 		FD_ZERO(&writefds);
 		for (std::map<int, Client>::const_iterator it = _clients.begin();
@@ -308,7 +317,13 @@ bool Server::run()
 		timeval timeout;
 		timeout.tv_sec = 1;
 		timeout.tv_usec = 0;
-		if (select(_maxFd + 1, &readfds, &writefds, NULL, &timeout) < 0)
+		const int ready = select(_maxFd + 1, &readfds, &writefds, NULL, &timeout);
+		if (ready == 0)
+		{
+			_acceptPaused = false;
+			continue;
+		}
+		if (ready < 0)
 		{
 			if (errno == EINTR)
 				continue;

@@ -32,6 +32,7 @@ class Server
 		std::string _password;
 		int _serverFd;
 		int _maxFd;
+		bool _acceptPaused;
 		fd_set _master;
 		std::map<int, Client> _clients;
 		std::map<std::string, Channel> _channels;
