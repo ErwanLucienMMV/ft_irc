@@ -25,9 +25,9 @@ static int parsePort(const char *text)
 
 int main(int argc, char **argv)
 {
-	if (argc != 3)
+	if (argc != 2 && argc != 3)
 	{
-		std::cerr << "Usage: " << argv[0] << " <port> <password>" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " <port> [password]" << std::endl;
 		return 1;
 	}
 
@@ -38,14 +38,14 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if (!*argv[2])
+	if (argc == 3 && !*argv[2])
 	{
 		std::cerr << "Error: password cannot be empty" << std::endl;
 		return 1;
 	}
 	try
 	{
-		Server server(port, argv[2]);
+		Server server(port, argc == 3 ? argv[2] : "");
 		if (!server.start() || !server.run())
 			return 1;
 	}

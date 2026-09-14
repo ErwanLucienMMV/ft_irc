@@ -20,10 +20,10 @@ Compile the server:
 make
 ```
 
-Start it with a TCP port and a connection password:
+Start it with a TCP port and an optional connection password:
 
 ```sh
-./ircserv <port> <password>
+./ircserv <port> [password]
 ```
 
 For example:
@@ -32,11 +32,18 @@ For example:
 ./ircserv 6667 secret
 ```
 
+The subject's invocation `./ircserv <port> <password>` requires clients to
+authenticate with that password. For local testing, `./ircserv 6667` also
+works: clients can register with `NICK` and `USER` without sending `PASS`.
+An explicitly supplied empty password is rejected; omit the argument instead.
+
 Connect with Irssi:
 
 ```sh
 irssi -c 127.0.0.1 -p 6667 -w secret -n alice
 ```
+
+Omit `-w secret` when connecting to a server started without a password.
 
 The implemented channel modes are `i` (invite-only), `t` (operator-only topic),
 `k` (channel key), `o` (channel operator) and `l` (user limit).
