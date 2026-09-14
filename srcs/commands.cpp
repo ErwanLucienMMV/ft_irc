@@ -40,6 +40,9 @@ bool Server::handleMessage(Client &client, const std::string &message)
 			return (this->*commands[i].handler)(client, command);
 		}
 	}
+	// Modern clients probe CAP even when a server does not support negotiation.
+	if (command.name == "CAP")
+		return true;
 	return reply(client, "421", command.name + " :Unknown command");
 }
 
