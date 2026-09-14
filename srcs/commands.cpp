@@ -73,7 +73,8 @@ static bool isValidNickname(const std::string &nickname)
 
 static bool isValidUsername(const std::string &username)
 {
-	if (username.empty())
+	// Keep room for the nickname, host and command in forwarded IRC lines.
+	if (username.empty() || username.size() > 12)
 		return false;
 	for (std::size_t i = 0; i < username.size(); ++i)
 	{
