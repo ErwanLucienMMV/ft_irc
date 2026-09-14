@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <csignal>
+#include <set>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -183,14 +184,31 @@ bool Server::acceptClient()
 void Server::disconnectClient(int fd)
 {
 	std::cout << "Client disconnected (fd " << fd << ")" << std::endl;
+	std::map<int, Client>::iterator leaving = _clients.find(fd);
+	std::set<int> recipients;
+	std::string quitMessage;
+	if (leaving != _clients.end() && leaving->second.isRegistered())
+		quitMessage = clientPrefix(leaving->second) + " QUIT :Connection closed";
 	for (std::map<std::string, Channel>::iterator it = _channels.begin();
 		it != _channels.end();)
 	{
+		if (it->second.hasMember(fd))
+		{
+			const std::set<int> &members = it->second.getMembers();
+			recipients.insert(members.begin(), members.end());
+		}
 		it->second.removeMember(fd);
 		if (it->second.isEmpty())
 			_channels.erase(it++);
 		else
 			++it;
+	}
+	recipients.erase(fd);
+	for (std::set<int>::const_iterator it = recipients.begin(); it != recipients.end(); ++it)
+	{
+		std::map<int, Client>::iterator recipient = _clients.find(*it);
+		if (recipient != _clients.end())
+			sendLine(recipient->second, quitMessage);
 	}
 	close(fd);
 	FD_CLR(fd, &_master);

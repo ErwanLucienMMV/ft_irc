@@ -216,6 +216,33 @@ bool Server::handleNick(Client &client, const Command &command)
 		return reply(client, "432", "* :Erroneous nickname");
 	if (!isNicknameAvailable(nickname, client.getFd()))
 		return reply(client, "433", nickname + " :Nickname is already in use");
+	if (client.isRegistered() && client.getNickname() != nickname)
+	{
+		const std::string nickMessage = clientPrefix(client) + " NICK :" + nickname;
+		std::set<int> recipients;
+		recipients.insert(client.getFd());
+		for (std::map<std::string, Channel>::const_iterator it = _channels.begin();
+			it != _channels.end(); ++it)
+		{
+			if (it->second.hasMember(client.getFd()))
+				recipients.insert(it->second.getMembers().begin(),
+					it->second.getMembers().end());
+		}
+		client.setNickname(nickname);
+		for (std::set<int>::const_iterator it = recipients.begin();
+			it != recipients.end(); ++it)
+		{
+			std::map<int, Client>::iterator recipient = _clients.find(*it);
+			if (recipient != _clients.end()
+				&& !sendLine(recipient->second, nickMessage))
+			{
+				if (*it == client.getFd())
+					return false;
+				disconnectClient(*it);
+			}
+		}
+		return true;
+	}
 	client.setNickname(nickname);
 	return tryRegister(client);
 }
