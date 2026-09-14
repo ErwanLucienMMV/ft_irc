@@ -36,6 +36,7 @@ and `make re` rebuilds the project.
 ## Resources
 
 - [RFC 2812 - Internet Relay Chat: Client Protocol](https://www.rfc-editor.org/rfc/rfc2812)
+- [RFC 1459 - Internet Relay Chat Protocol](https://www.rfc-editor.org/rfc/rfc1459)
 - [Modern IRC Client Protocol](https://modern.ircdocs.horse/)
 - Linux manual pages for `socket`, `fcntl`, `select`, `recv` and `send`
 
