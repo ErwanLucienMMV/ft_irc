@@ -1,5 +1,4 @@
 #include "server.hpp"
-#include <iostream>
 #include <cstdio>
 #include <cstring>
 #include <utility>
@@ -49,12 +48,10 @@ static bool configureSocket(int fd)
 {
 	if (fd >= FD_SETSIZE)
 	{
-		std::cerr << "Error: socket exceeds select capacity." << std::endl;
 		return false;
 	}
 	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
 	{
-		std::perror("fcntl");
 		return false;
 	}
 	return true;
@@ -131,7 +128,6 @@ bool Server::start()
 		return false;
 	FD_SET(_serverFd, &_master);
 	_maxFd = _serverFd;
-	std::cout << "Listening on port " << _port << std::endl;
 	return true;
 }
 
@@ -152,7 +148,6 @@ bool Server::acceptClient()
 		if (errno == EAGAIN || errno == EWOULDBLOCK
 			|| errno == EINTR || errno == ECONNABORTED)
 			return true;
-		std::perror("accept");
 		return false;
 	}
 	if (!configureSocket(client_fd))
@@ -179,17 +174,11 @@ bool Server::acceptClient()
 	Client &connected = _clients.find(client_fd)->second;
 	connected.setPasswordAccepted(_password.empty());
 
-	std::cout << "Client connected: "
-		<< connected.getAddress()
-		<< ":" << connected.getPort()
-		<< " (fd " << connected.getFd() << ")"
-		<< std::endl;
 	return true;
 }
 
 void Server::disconnectClient(int fd)
 {
-	std::cout << "Client disconnected (fd " << fd << ")" << std::endl;
 	std::map<int, Client>::iterator leaving = _clients.find(fd);
 	std::set<int> recipients;
 	std::string quitMessage;
@@ -247,11 +236,6 @@ bool Server::receiveFromClient(Client &client)
 		}
 		return true;
 	}
-	std::cout << "----- RECEIVED " << bytes << " BYTES -----" << std::endl;
-	// Print exactly the received bytes: the buffer may not end with '\0'.
-	std::cout.write(buffer, bytes);
-	std::cout << std::endl;
-	std::cout << "--------------------------------" << std::endl;
 
 	if (!client.appendReceived(buffer, static_cast<std::size_t>(bytes)))
 	{
@@ -327,7 +311,6 @@ bool Server::run()
 		{
 			if (errno == EINTR)
 				continue;
-			std::perror("select");
 			return false;
 		}
 
