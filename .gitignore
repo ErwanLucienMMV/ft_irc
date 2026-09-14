@@ -35,9 +35,16 @@
 *.lib
 
 # Executables
+/ircserv
 *.exe
 *.out
 *.app
+
+# Local documentation
+/docs/
+
+# Local tests
+/tests/
 
 # Build directories
 build/
@@ -48,7 +55,6 @@ build-*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
 install_manifest.txt
 compile_commands.json
 

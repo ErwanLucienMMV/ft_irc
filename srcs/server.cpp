@@ -1,0 +1,360 @@
+#include "server.hpp"
+#include <cstdio>
+#include <cstring>
+#include <utility>
+#include <algorithm>
+#include <cerrno>
+#include <csignal>
+#include <set>
+#include <new>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/select.h>
+
+#define BUFFER_SIZE 4096
+
+static volatile sig_atomic_t stopRequested = 0;
+
+static void requestStop(int)
+{
+	stopRequested = 1;
+}
+
+static bool configureSignals()
+{
+	struct sigaction action;
+	std::memset(&action, 0, sizeof(action));
+	sigemptyset(&action.sa_mask);
+	action.sa_handler = requestStop;
+	if (sigaction(SIGINT, &action, NULL) < 0
+		|| sigaction(SIGTERM, &action, NULL) < 0)
+	{
+		std::perror("sigaction");
+		return false;
+	}
+	action.sa_handler = SIG_IGN;
+	if (sigaction(SIGPIPE, &action, NULL) < 0)
+	{
+		std::perror("sigaction");
+		return false;
+	}
+	stopRequested = 0;
+	return true;
+}
+
+static bool configureSocket(int fd)
+{
+	if (fd >= FD_SETSIZE)
+	{
+		return false;
+	}
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+	{
+		return false;
+	}
+	return true;
+}
+
+Server::Server(int port, const std::string &password)
+	: _port(port), _password(password), _serverFd(-1), _maxFd(-1), _acceptPaused(false)
+{
+	FD_ZERO(&_master);
+}
+
+Server::~Server()
+{
+	clearClients();
+	if (_serverFd >= 0)
+		close(_serverFd);
+}
+
+void Server::clearClients() throw()
+{
+	// Recovery must not allocate or announce QUIT: memory may be exhausted.
+	for (std::map<int, Client>::const_iterator it = _clients.begin();
+		it != _clients.end(); ++it)
+		close(it->second.getFd());
+	_clients.clear();
+	_channels.clear();
+	FD_ZERO(&_master);
+	if (_serverFd >= 0)
+		FD_SET(_serverFd, &_master);
+	_maxFd = _serverFd;
+}
+
+int Server::createSocket() const
+{
+	int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (server_fd < 0)
+	{
+		std::perror("socket");
+		return -1;
+	}
+	if (!configureSocket(server_fd))
+	{
+		close(server_fd);
+		return -1;
+	}
+
+	int opt = 1;
+	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0)
+	{
+		std::perror("setsockopt");
+		close(server_fd);
+		return -1;
+	}
+
+	sockaddr_in addr;
+	std::memset(&addr, 0, sizeof(addr));
+	addr.sin_family = AF_INET;
+	addr.sin_addr.s_addr = INADDR_ANY;
+	addr.sin_port = htons(_port);
+
+	if (bind(server_fd, (sockaddr *)&addr, sizeof(addr)) < 0)
+	{
+		std::perror("bind");
+		close(server_fd);
+		return -1;
+	}
+
+	if (listen(server_fd, SOMAXCONN) < 0)
+	{
+		std::perror("listen");
+		close(server_fd);
+		return -1;
+	}
+
+	return server_fd;
+}
+
+bool Server::start()
+{
+	if (_serverFd >= 0)
+		return true;
+	if (!configureSignals())
+		return false;
+	_serverFd = createSocket();
+	if (_serverFd < 0)
+		return false;
+	FD_SET(_serverFd, &_master);
+	_maxFd = _serverFd;
+	return true;
+}
+
+bool Server::acceptClient()
+{
+	sockaddr_in client;
+	socklen_t len = sizeof(client);
+	int client_fd = accept(_serverFd, (sockaddr *)&client, &len);
+
+	if (client_fd < 0)
+	{
+		if (errno == EMFILE || errno == ENFILE || errno == ENOBUFS
+			|| errno == ENOMEM)
+		{
+			_acceptPaused = true;
+			return true;
+		}
+		if (errno == EAGAIN || errno == EWOULDBLOCK
+			|| errno == EINTR || errno == ECONNABORTED)
+			return true;
+		return false;
+	}
+	if (!configureSocket(client_fd))
+	{
+		close(client_fd);
+		return true;
+	}
+
+	try
+	{
+		_clients.insert(std::make_pair(client_fd,
+			Client(client_fd, inet_ntoa(client.sin_addr), ntohs(client.sin_port))));
+	}
+	catch (...)
+	{
+		close(client_fd);
+		throw;
+	}
+
+	FD_SET(client_fd, &_master);
+	if (client_fd > _maxFd)
+		_maxFd = client_fd;
+
+	Client &connected = _clients.find(client_fd)->second;
+	connected.setPasswordAccepted(_password.empty());
+
+	return true;
+}
+
+void Server::disconnectClient(int fd)
+{
+	std::map<int, Client>::iterator leaving = _clients.find(fd);
+	std::set<int> recipients;
+	std::string quitMessage;
+	if (leaving != _clients.end() && leaving->second.isRegistered())
+		quitMessage = clientPrefix(leaving->second) + " QUIT :Connection closed";
+	for (std::map<std::string, Channel>::iterator it = _channels.begin();
+		it != _channels.end();)
+	{
+		if (it->second.hasMember(fd))
+		{
+			const std::set<int> &members = it->second.getMembers();
+			recipients.insert(members.begin(), members.end());
+		}
+		it->second.removeMember(fd);
+		if (it->second.isEmpty())
+			_channels.erase(it++);
+		else
+			++it;
+	}
+	recipients.erase(fd);
+	for (std::set<int>::const_iterator it = recipients.begin(); it != recipients.end(); ++it)
+	{
+		std::map<int, Client>::iterator recipient = _clients.find(*it);
+		if (recipient != _clients.end())
+			sendLine(recipient->second, quitMessage);
+	}
+	close(fd);
+	_acceptPaused = false;
+	FD_CLR(fd, &_master);
+	_clients.erase(fd);
+	_maxFd = _serverFd;
+	if (!_clients.empty())
+		_maxFd = std::max(_maxFd, _clients.rbegin()->first);
+}
+
+bool Server::receiveFromClient(Client &client)
+{
+	char buffer[BUFFER_SIZE];
+	ssize_t bytes = recv(client.getFd(), buffer, sizeof(buffer), 0);
+
+	if (!client.recordIoResult(bytes >= 0))
+	{
+		disconnectClient(client.getFd());
+		return false;
+	}
+	if (bytes < 0)
+		return true;
+	if (bytes == 0)
+	{
+		client.closeRead();
+		if (!client.hasPendingOutput())
+		{
+			disconnectClient(client.getFd());
+			return false;
+		}
+		return true;
+	}
+
+	if (!client.appendReceived(buffer, static_cast<std::size_t>(bytes)))
+	{
+		disconnectClient(client.getFd());
+		return false;
+	}
+	std::string line;
+	while (client.extractLine(line))
+	{
+		if (line.size() > 510 || !handleMessage(client, line))
+		{
+			disconnectClient(client.getFd());
+			return false;
+		}
+	}
+	if (client.hasIncompleteLineTooLong())
+	{
+		disconnectClient(client.getFd());
+		return false;
+	}
+	return true;
+}
+
+void Server::sendToClient(Client &client)
+{
+	const std::string &output = client.getPendingOutput();
+	std::size_t size = std::min(output.size(), static_cast<std::size_t>(BUFFER_SIZE));
+	ssize_t bytes = send(client.getFd(), output.data(), size, 0);
+	if (!client.recordIoResult(bytes > 0))
+	{
+		disconnectClient(client.getFd());
+		return;
+	}
+	if (bytes <= 0)
+		return;
+	client.consumeOutput(static_cast<std::size_t>(bytes));
+	if (!client.hasPendingOutput() && client.isReadClosed())
+		disconnectClient(client.getFd());
+}
+
+bool Server::run()
+{
+	if (_serverFd < 0)
+		return false;
+
+	while (!stopRequested)
+	{
+		fd_set readfds = _master;
+		if (_acceptPaused)
+			FD_CLR(_serverFd, &readfds);
+		fd_set writefds;
+		FD_ZERO(&writefds);
+		for (std::map<int, Client>::const_iterator it = _clients.begin();
+			it != _clients.end(); ++it)
+		{
+			if (it->second.isReadClosed())
+				FD_CLR(it->first, &readfds);
+			if (it->second.hasPendingOutput())
+				FD_SET(it->first, &writefds);
+		}
+
+		// The timeout also handles a stop signal arriving just before select().
+		timeval timeout;
+		timeout.tv_sec = 1;
+		timeout.tv_usec = 0;
+		const int ready = select(_maxFd + 1, &readfds, &writefds, NULL, &timeout);
+		if (ready == 0)
+		{
+			_acceptPaused = false;
+			continue;
+		}
+		if (ready < 0)
+		{
+			if (errno == EINTR)
+				continue;
+			return false;
+		}
+
+		try
+		{
+			for (int fd = 0; fd <= _maxFd && !stopRequested; ++fd)
+			{
+				if (!FD_ISSET(fd, &readfds) && !FD_ISSET(fd, &writefds))
+					continue;
+
+				if (fd == _serverFd)
+				{
+					if (!acceptClient())
+						return false;
+					continue;
+				}
+				std::map<int, Client>::iterator found = _clients.find(fd);
+				if (found == _clients.end())
+					continue;
+				Client &client = found->second;
+				if (FD_ISSET(fd, &readfds) && !receiveFromClient(client))
+					continue;
+				if (FD_ISSET(fd, &writefds))
+					sendToClient(client);
+			}
+		}
+		catch (const std::bad_alloc &)
+		{
+			clearClients();
+			_acceptPaused = true;
+		}
+	}
+	return true;
+}
