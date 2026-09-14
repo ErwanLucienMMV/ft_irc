@@ -1,4 +1,56 @@
-# ft_irc
-ft_irc project
+*This project has been created as part of the 42 curriculum by hcombaud, emaigne.*
 
-Build with `make`, then run `./ircserv <port> <password>`.
+# ft_irc
+
+## Description
+
+`ft_irc` is a small IRC server written in C++98. It accepts multiple TCP/IP
+clients in a single non-blocking `select()` loop. Connected users can register,
+exchange direct messages, join channels, talk in channels, and use the channel
+operator commands required by the project.
+
+The server keeps its state in memory. Users, channels and messages are not
+preserved after it stops. Irssi 1.4.5 is the reference IRC client.
+
+## Instructions
+
+Compile the server:
+
+```sh
+make
+```
+
+Start it with a TCP port and a connection password:
+
+```sh
+./ircserv <port> <password>
+```
+
+For example:
+
+```sh
+./ircserv 6667 secret
+```
+
+Connect with Irssi:
+
+```sh
+irssi -c 127.0.0.1 -p 6667 -w secret -n alice
+```
+
+The implemented channel modes are `i` (invite-only), `t` (operator-only topic),
+`k` (channel key), `o` (channel operator) and `l` (user limit).
+
+Clean generated files with `make clean` or `make fclean`. Use `make re` for a
+complete rebuild.
+
+## Resources
+
+- [RFC 2812 - Internet Relay Chat: Client Protocol](https://www.rfc-editor.org/rfc/rfc2812)
+- [Modern IRC Client Protocol](https://modern.ircdocs.horse/)
+- Linux manual pages for `socket`, `fcntl`, `select`, `recv` and `send`
+
+AI assistance was used to explain networking and IRC concepts, review design
+choices, help implement and refactor the parser, server, client and channel
+logic, and prepare local automated tests. Every generated change was reviewed,
+compiled and tested incrementally by the project authors.
