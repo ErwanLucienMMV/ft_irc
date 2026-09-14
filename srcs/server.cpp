@@ -327,7 +327,10 @@ bool Server::run()
 					return false;
 				continue;
 			}
-			Client &client = _clients.find(fd)->second;
+			std::map<int, Client>::iterator found = _clients.find(fd);
+			if (found == _clients.end())
+				continue;
+			Client &client = found->second;
 			if (FD_ISSET(fd, &readfds) && !receiveFromClient(client))
 				continue;
 			if (FD_ISSET(fd, &writefds))
