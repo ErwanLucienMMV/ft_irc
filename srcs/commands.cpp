@@ -1,6 +1,7 @@
 #include "server.hpp"
 #include "parser.hpp"
-#include <cstdlib>
+#include <cstdio>
+#include <limits>
 #include <vector>
 
 bool Server::handleMessage(Client &client, const std::string &message)
@@ -460,9 +461,119 @@ bool Server::handleKick(Client &client, const Command &command)
 	return sent;
 }
 
-bool Server::handleMode(Client &, const Command &)
+static bool parseLimit(const std::string &text, std::size_t &limit)
 {
-	return true;
+	if (text.empty())
+		return false;
+	limit = 0;
+	for (std::size_t i = 0; i < text.size(); ++i)
+	{
+		if (text[i] < '0' || text[i] > '9')
+			return false;
+		const std::size_t digit = text[i] - '0';
+		if (limit > (std::numeric_limits<std::size_t>::max() - digit) / 10)
+			return false;
+		limit = limit * 10 + digit;
+	}
+	return limit != 0;
+}
+
+static std::string channelModes(const Channel &channel)
+{
+	std::string modes = "+";
+	std::string parameters;
+	if (channel.isInviteOnly()) modes += "i";
+	if (channel.isTopicRestricted()) modes += "t";
+	if (!channel.getKey().empty())
+	{
+		modes += "k";
+		parameters += " " + channel.getKey();
+	}
+	if (channel.getLimit() != 0)
+	{
+		modes += "l";
+		char buffer[32];
+		std::sprintf(buffer, "%lu", static_cast<unsigned long>(channel.getLimit()));
+		parameters += " " + std::string(buffer);
+	}
+	return modes + parameters;
+}
+
+bool Server::handleMode(Client &client, const Command &command)
+{
+	if (command.params.empty())
+		return reply(client, "461", "MODE :Not enough parameters");
+	Channel *channel = findChannel(command.params[0]);
+	if (channel == NULL)
+		return reply(client, "403", command.params[0] + " :No such channel");
+	if (command.params.size() == 1)
+		return reply(client, "324", channel->getName() + " " + channelModes(*channel));
+	if (!channel->hasMember(client.getFd()))
+		return reply(client, "442", channel->getName() + " :You're not on that channel");
+	if (!channel->isOperator(client.getFd()))
+		return reply(client, "482", channel->getName() + " :You're not channel operator");
+
+	const std::string &modes = command.params[1];
+	bool adding = true;
+	std::size_t parameter = 2;
+	for (std::size_t i = 0; i < modes.size(); ++i)
+	{
+		if (modes[i] == '+' || modes[i] == '-')
+		{
+			adding = modes[i] == '+';
+			continue;
+		}
+		if (modes[i] == 'i')
+			channel->setInviteOnly(adding);
+		else if (modes[i] == 't')
+			channel->setTopicRestricted(adding);
+		else if (modes[i] == 'k')
+		{
+			if (adding)
+			{
+				if (parameter >= command.params.size() || command.params[parameter].empty())
+					return reply(client, "461", "MODE :Not enough parameters");
+				channel->setKey(command.params[parameter++]);
+			}
+			else
+				channel->setKey("");
+		}
+		else if (modes[i] == 'l')
+		{
+			if (adding)
+			{
+				std::size_t limit;
+				if (parameter >= command.params.size()
+					|| !parseLimit(command.params[parameter], limit))
+					return reply(client, "461", "MODE :Invalid limit");
+				++parameter;
+				channel->setLimit(limit);
+			}
+			else
+				channel->setLimit(0);
+		}
+		else if (modes[i] == 'o')
+		{
+			if (parameter >= command.params.size())
+				return reply(client, "461", "MODE :Not enough parameters");
+			Client *target = findClient(command.params[parameter++]);
+			if (target == NULL || !channel->hasMember(target->getFd()))
+				return reply(client, "441", command.params[parameter - 1] + " "
+					+ channel->getName() + " :They aren't on that channel");
+			if (adding)
+				channel->addOperator(target->getFd());
+			else
+				channel->removeOperator(target->getFd());
+		}
+		else
+			return reply(client, "472", std::string(1, modes[i])
+				+ " :is unknown mode char to me");
+	}
+
+	std::string message = clientPrefix(client) + " MODE " + channel->getName();
+	for (std::size_t i = 1; i < command.params.size(); ++i)
+		message += " " + command.params[i];
+	return broadcast(*channel, message, -1, client.getFd());
 }
 
 bool Server::handleNames(Client &client, const Command &command)
