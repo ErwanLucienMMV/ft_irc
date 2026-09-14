@@ -153,6 +153,8 @@ bool Server::broadcast(Channel &channel, const std::string &message,
 
 bool Server::sendNames(Client &client, const Channel &channel)
 {
+	const std::string prefix = ":localhost 353 " + client.getNickname()
+		+ " = " + channel.getName() + " :";
 	std::string names;
 	for (std::set<int>::const_iterator it = channel.getMembers().begin();
 		it != channel.getMembers().end(); ++it)
@@ -160,13 +162,21 @@ bool Server::sendNames(Client &client, const Channel &channel)
 		std::map<int, Client>::const_iterator member = _clients.find(*it);
 		if (member == _clients.end())
 			continue;
+		std::string name;
+		if (channel.isOperator(*it))
+			name = "@";
+		name += member->second.getNickname();
+		if (!names.empty() && prefix.size() + names.size() + 1 + name.size() > 510)
+		{
+			if (!sendLine(client, prefix + names))
+				return false;
+			names.clear();
+		}
 		if (!names.empty())
 			names += " ";
-		if (channel.isOperator(*it))
-			names += "@";
-		names += member->second.getNickname();
+		names += name;
 	}
-	if (!reply(client, "353", "= " + channel.getName() + " :" + names))
+	if (!sendLine(client, prefix + names))
 		return false;
 	return reply(client, "366", channel.getName() + " :End of /NAMES list");
 }
