@@ -282,13 +282,42 @@ static bool isValidChannelName(const std::string &name)
 	return name.find_first_of(" ,:\a\r\n") == std::string::npos;
 }
 
+static std::vector<std::string> splitCommaList(const std::string &text)
+{
+	std::vector<std::string> items;
+	std::size_t start = 0;
+	while (true)
+	{
+		const std::size_t end = text.find(',', start);
+		items.push_back(text.substr(start, end == std::string::npos
+			? end : end - start));
+		if (end == std::string::npos)
+			return items;
+		start = end + 1;
+	}
+}
+
 bool Server::handleJoin(Client &client, const Command &command)
 {
 	if (command.params.empty())
 		return reply(client, "461", "JOIN :Not enough parameters");
-	const std::string &name = command.params[0];
+	const std::vector<std::string> names = splitCommaList(command.params[0]);
+	std::vector<std::string> keys;
+	if (command.params.size() > 1)
+		keys = splitCommaList(command.params[1]);
+	for (std::size_t i = 0; i < names.size(); ++i)
+	{
+		if (!joinChannel(client, names[i], i < keys.size() ? keys[i] : ""))
+			return false;
+	}
+	return true;
+}
+
+bool Server::joinChannel(Client &client, const std::string &name,
+	const std::string &key)
+{
 	if (!isValidChannelName(name))
-		return reply(client, "403", name + " :No such channel");
+		return reply(client, "403", (name.empty() ? "*" : name) + " :No such channel");
 
 	Channel *channel = findChannel(name);
 	if (channel == NULL)
@@ -303,8 +332,7 @@ bool Server::handleJoin(Client &client, const Command &command)
 			return true;
 		if (channel->isInviteOnly() && !channel->isInvited(client.getFd()))
 			return reply(client, "473", channel->getName() + " :Cannot join channel (+i)");
-		if (!channel->getKey().empty()
-			&& (command.params.size() < 2 || command.params[1] != channel->getKey()))
+		if (!channel->getKey().empty() && key != channel->getKey())
 			return reply(client, "475", channel->getName() + " :Cannot join channel (+k)");
 		if (channel->isFull())
 			return reply(client, "471", channel->getName() + " :Cannot join channel (+l)");

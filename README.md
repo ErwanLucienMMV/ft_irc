@@ -52,6 +52,10 @@ Both `MODE #room +k secret` and `MODE #room -k secret` take a key argument.
 Channel keys contain 1 to 64 printable ASCII characters, excluding spaces,
 commas and colons.
 
+Join several channels with `JOIN #one,#two`. Keys match channel positions:
+`JOIN #one,#two ,secret` joins an open first channel and a protected second one.
+A refused channel does not prevent joining the remaining channels.
+
 Usernames are limited to 12 characters. If memory allocation fails while the
 server is running, it closes existing client connections and clears channels
 to recover without allocating memory. The listening socket remains open;

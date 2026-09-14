@@ -59,6 +59,7 @@ class Server
 		bool handleNick(Client &client, const Command &command);
 		bool handleUser(Client &client, const Command &command);
 		bool handleJoin(Client &client, const Command &command);
+		bool joinChannel(Client &client, const std::string &name, const std::string &key);
 		bool handlePart(Client &client, const Command &command);
 		bool handlePrivmsg(Client &client, const Command &command);
 		bool handleNotice(Client &client, const Command &command);
