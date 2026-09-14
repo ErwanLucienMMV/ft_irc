@@ -178,12 +178,14 @@ bool Server::handleNotice(Client &, const Command &)
 
 bool Server::handleQuit(Client &, const Command &)
 {
-	return true;
+	return false;
 }
 
-bool Server::handlePing(Client &, const Command &)
+bool Server::handlePing(Client &client, const Command &command)
 {
-	return true;
+	if (command.params.empty() || command.params[0].empty())
+		return reply(client, "409", ":No origin specified");
+	return client.queueMessage("PONG :" + command.params[0] + "\r\n");
 }
 
 bool Server::handlePong(Client &, const Command &)
