@@ -49,6 +49,7 @@ class Server
 		bool sendNames(Client &client, const Channel &channel);
 		std::string clientPrefix(const Client &client) const;
 		Channel *findChannel(const std::string &name);
+		Client *findClient(const std::string &nickname);
 		bool isNicknameAvailable(const std::string &nickname, int excludedFd) const;
 		bool handleMessage(Client &client, const std::string &message);
 		bool tryRegister(Client &client);

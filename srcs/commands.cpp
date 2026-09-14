@@ -111,6 +111,18 @@ Channel *Server::findChannel(const std::string &name)
 	return &it->second;
 }
 
+Client *Server::findClient(const std::string &nickname)
+{
+	const std::string folded = foldName(nickname);
+	for (std::map<int, Client>::iterator it = _clients.begin(); it != _clients.end(); ++it)
+	{
+		if (it->second.isRegistered()
+			&& foldName(it->second.getNickname()) == folded)
+			return &it->second;
+	}
+	return NULL;
+}
+
 bool Server::broadcast(Channel &channel, const std::string &message,
 	int exceptFd, int senderFd)
 {
@@ -292,13 +304,63 @@ bool Server::handlePart(Client &client, const Command &command)
 	return true;
 }
 
-bool Server::handlePrivmsg(Client &, const Command &)
+bool Server::handlePrivmsg(Client &client, const Command &command)
 {
+	if (command.params.empty())
+		return reply(client, "411", ":No recipient given (PRIVMSG)");
+	if (command.params.size() < 2 || command.params[1].empty())
+		return reply(client, "412", ":No text to send");
+
+	const std::string &targetName = command.params[0];
+	const std::string message = clientPrefix(client) + " PRIVMSG "
+		+ targetName + " :" + command.params[1];
+	if (!targetName.empty() && (targetName[0] == '#' || targetName[0] == '&'))
+	{
+		Channel *channel = findChannel(targetName);
+		if (channel == NULL)
+			return reply(client, "403", targetName + " :No such channel");
+		if (!channel->hasMember(client.getFd()))
+			return reply(client, "404", channel->getName() + " :Cannot send to channel");
+		return broadcast(*channel, message, client.getFd(), client.getFd());
+	}
+
+	Client *target = findClient(targetName);
+	if (target == NULL)
+		return reply(client, "401", targetName + " :No such nick");
+	if (!sendLine(*target, message))
+	{
+		if (target->getFd() == client.getFd())
+			return false;
+		disconnectClient(target->getFd());
+	}
 	return true;
 }
 
-bool Server::handleNotice(Client &, const Command &)
+bool Server::handleNotice(Client &client, const Command &command)
 {
+	// NOTICE deliberately generates no automatic error replies.
+	if (command.params.size() < 2 || command.params[0].empty()
+		|| command.params[1].empty())
+		return true;
+	const std::string &targetName = command.params[0];
+	const std::string message = clientPrefix(client) + " NOTICE "
+		+ targetName + " :" + command.params[1];
+	if (targetName[0] == '#' || targetName[0] == '&')
+	{
+		Channel *channel = findChannel(targetName);
+		if (channel == NULL || !channel->hasMember(client.getFd()))
+			return true;
+		return broadcast(*channel, message, client.getFd(), client.getFd());
+	}
+	Client *target = findClient(targetName);
+	if (target == NULL)
+		return true;
+	if (!sendLine(*target, message))
+	{
+		if (target->getFd() == client.getFd())
+			return false;
+		disconnectClient(target->getFd());
+	}
 	return true;
 }
 
