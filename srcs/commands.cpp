@@ -403,14 +403,61 @@ bool Server::handleTopic(Client &client, const Command &command)
 		+ channel->getName() + " :" + channel->getTopic(), -1, client.getFd());
 }
 
-bool Server::handleInvite(Client &, const Command &)
+bool Server::handleInvite(Client &client, const Command &command)
 {
+	if (command.params.size() != 2)
+		return reply(client, "461", "INVITE :Not enough parameters");
+	Client *target = findClient(command.params[0]);
+	if (target == NULL)
+		return reply(client, "401", command.params[0] + " :No such nick");
+	Channel *channel = findChannel(command.params[1]);
+	if (channel == NULL)
+		return reply(client, "403", command.params[1] + " :No such channel");
+	if (!channel->hasMember(client.getFd()))
+		return reply(client, "442", channel->getName() + " :You're not on that channel");
+	if (!channel->isOperator(client.getFd()))
+		return reply(client, "482", channel->getName() + " :You're not channel operator");
+	if (channel->hasMember(target->getFd()))
+		return reply(client, "443", target->getNickname() + " "
+			+ channel->getName() + " :is already on channel");
+
+	const int targetFd = target->getFd();
+	channel->invite(targetFd);
+	if (!reply(client, "341", target->getNickname() + " " + channel->getName()))
+		return false;
+	if (!sendLine(*target, clientPrefix(client) + " INVITE "
+		+ target->getNickname() + " :" + channel->getName()))
+		disconnectClient(targetFd);
 	return true;
 }
 
-bool Server::handleKick(Client &, const Command &)
+bool Server::handleKick(Client &client, const Command &command)
 {
-	return true;
+	if (command.params.size() < 2)
+		return reply(client, "461", "KICK :Not enough parameters");
+	Channel *channel = findChannel(command.params[0]);
+	if (channel == NULL)
+		return reply(client, "403", command.params[0] + " :No such channel");
+	if (!channel->hasMember(client.getFd()))
+		return reply(client, "442", channel->getName() + " :You're not on that channel");
+	if (!channel->isOperator(client.getFd()))
+		return reply(client, "482", channel->getName() + " :You're not channel operator");
+	Client *target = findClient(command.params[1]);
+	if (target == NULL)
+		return reply(client, "401", command.params[1] + " :No such nick");
+	if (!channel->hasMember(target->getFd()))
+		return reply(client, "441", target->getNickname() + " "
+			+ channel->getName() + " :They aren't on that channel");
+
+	const int targetFd = target->getFd();
+	std::string reason = client.getNickname();
+	if (command.params.size() > 2 && !command.params[2].empty())
+		reason = command.params[2];
+	const bool sent = broadcast(*channel, clientPrefix(client) + " KICK "
+		+ channel->getName() + " " + target->getNickname() + " :" + reason,
+		-1, client.getFd());
+	channel->removeMember(targetFd);
+	return sent;
 }
 
 bool Server::handleMode(Client &, const Command &)
