@@ -4,25 +4,25 @@
 bool Server::handleMessage(Client &client, const std::string &message)
 {
 	static const CommandEntry commands[] = {
-		{"PASS", &Server::handlePass},
-		{"NICK", &Server::handleNick},
-		{"USER", &Server::handleUser},
-		{"JOIN", &Server::handleJoin},
-		{"PART", &Server::handlePart},
-		{"PRIVMSG", &Server::handlePrivmsg},
-		{"NOTICE", &Server::handleNotice},
-		{"QUIT", &Server::handleQuit},
-		{"PING", &Server::handlePing},
-		{"PONG", &Server::handlePong},
-		{"TOPIC", &Server::handleTopic},
-		{"INVITE", &Server::handleInvite},
-		{"KICK", &Server::handleKick},
-		{"MODE", &Server::handleMode},
-		{"NAMES", &Server::handleNames},
-		{"LIST", &Server::handleList},
-		{"WHO", &Server::handleWho},
-		{"WHOIS", &Server::handleWhois},
-		{"MOTD", &Server::handleMotd}
+		{"PASS", &Server::handlePass, false},
+		{"NICK", &Server::handleNick, false},
+		{"USER", &Server::handleUser, false},
+		{"JOIN", &Server::handleJoin, true},
+		{"PART", &Server::handlePart, true},
+		{"PRIVMSG", &Server::handlePrivmsg, true},
+		{"NOTICE", &Server::handleNotice, true},
+		{"QUIT", &Server::handleQuit, false},
+		{"PING", &Server::handlePing, false},
+		{"PONG", &Server::handlePong, false},
+		{"TOPIC", &Server::handleTopic, true},
+		{"INVITE", &Server::handleInvite, true},
+		{"KICK", &Server::handleKick, true},
+		{"MODE", &Server::handleMode, true},
+		{"NAMES", &Server::handleNames, true},
+		{"LIST", &Server::handleList, true},
+		{"WHO", &Server::handleWho, true},
+		{"WHOIS", &Server::handleWhois, true},
+		{"MOTD", &Server::handleMotd, true}
 	};
 
 	Command command;
@@ -31,7 +31,11 @@ bool Server::handleMessage(Client &client, const std::string &message)
 	for (std::size_t i = 0; i < sizeof(commands) / sizeof(commands[0]); ++i)
 	{
 		if (command.name == commands[i].name)
+		{
+			if (commands[i].requiresRegistration && !client.isRegistered())
+				return reply(client, "451", ":You have not registered");
 			return (this->*commands[i].handler)(client, command);
+		}
 	}
 	return reply(client, "421", command.name + " :Unknown command");
 }
@@ -115,7 +119,7 @@ bool Server::handlePass(Client &client, const Command &command)
 {
 	if (client.isRegistered())
 		return reply(client, "462", ":You may not reregister");
-	if (command.params.empty())
+	if (command.params.size() != 1)
 		return reply(client, "461", "PASS :Not enough parameters");
 
 	client.setPasswordAccepted(_password.empty() || _password == command.params[0]);
@@ -126,7 +130,7 @@ bool Server::handlePass(Client &client, const Command &command)
 
 bool Server::handleNick(Client &client, const Command &command)
 {
-	if (command.params.empty() || command.params[0].empty())
+	if (command.params.size() != 1 || command.params[0].empty())
 		return reply(client, "431", ":No nickname given");
 	const std::string &nickname = command.params[0];
 	if (!isValidNickname(nickname))
@@ -142,7 +146,7 @@ bool Server::handleUser(Client &client, const Command &command)
 {
 	if (client.isRegistered() || !client.getUsername().empty())
 		return reply(client, "462", ":You may not reregister");
-	if (command.params.size() < 4)
+	if (command.params.size() != 4)
 		return reply(client, "461", "USER :Not enough parameters");
 	if (!isValidUsername(command.params[0]))
 		return reply(client, "461", "USER :Invalid username");

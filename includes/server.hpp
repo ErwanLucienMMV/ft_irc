@@ -24,6 +24,7 @@ class Server
 		{
 			const char *name;
 			CommandHandler handler;
+			bool requiresRegistration;
 		};
 
 		int _port;
