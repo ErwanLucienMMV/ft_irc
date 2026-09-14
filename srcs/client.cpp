@@ -5,8 +5,7 @@ static const std::size_t MAX_OUTPUT_SIZE = 65536;
 
 Client::Client(int socketFd, const std::string &ip, unsigned short remotePort)
 	: _fd(socketFd), _address(ip), _port(remotePort), _readClosed(false),
-	_ioFailures(0), _passwordAccepted(false), _registered(false),
-	_capNegotiating(false)
+	_ioFailures(0), _passwordAccepted(false), _registered(false)
 {
 }
 
@@ -50,12 +49,6 @@ bool Client::isRegistered() const
 	return _registered;
 }
 
-bool Client::isCapNegotiating() const
-{
-	return _capNegotiating;
-}
-
-
 void Client::setNickname(const std::string &nickname)
 {
 	_nickname = nickname;
@@ -70,11 +63,6 @@ void Client::setUserInfo(const std::string &username, const std::string &realnam
 void Client::setPasswordAccepted(bool accepted)
 {
 	_passwordAccepted = accepted;
-}
-
-void Client::setCapNegotiating(bool negotiating)
-{
-	_capNegotiating = negotiating;
 }
 
 void Client::markRegistered()

@@ -18,12 +18,10 @@ class Client
 		const std::string &getRealname() const;
 		bool isPasswordAccepted() const;
 		bool isRegistered() const;
-		bool isCapNegotiating() const;
 
 		void setNickname(const std::string &nickname);
 		void setUserInfo(const std::string &username, const std::string &realname);
 		void setPasswordAccepted(bool accepted);
-		void setCapNegotiating(bool negotiating);
 		void markRegistered();
 
 		bool appendReceived(const char *data, std::size_t size);
@@ -50,7 +48,6 @@ class Client
 		std::string _realname;
 		bool _passwordAccepted;
 		bool _registered;
-		bool _capNegotiating;
 };
 
 #endif

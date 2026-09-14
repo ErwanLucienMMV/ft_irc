@@ -42,7 +42,6 @@ class Server
 			const std::string &parameters);
 		bool isNicknameAvailable(const std::string &nickname, int excludedFd) const;
 		bool handleMessage(Client &client, const std::string &message);
-		bool handleCap(Client &client, const Command &command);
 		bool tryRegister(Client &client);
 		bool handlePass(Client &client, const Command &command);
 		bool handleNick(Client &client, const Command &command);

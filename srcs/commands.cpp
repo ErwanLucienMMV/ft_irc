@@ -1,12 +1,9 @@
 #include "server.hpp"
 #include "parser.hpp"
-#include <cctype>
-#include <iostream>
 
 bool Server::handleMessage(Client &client, const std::string &message)
 {
 	static const CommandEntry commands[] = {
-		{"CAP", &Server::handleCap},
 		{"PASS", &Server::handlePass},
 		{"NICK", &Server::handleNick},
 		{"USER", &Server::handleUser},
@@ -36,28 +33,7 @@ bool Server::handleMessage(Client &client, const std::string &message)
 		if (command.name == commands[i].name)
 			return (this->*commands[i].handler)(client, command);
 	}
-	// Unknown commands are ignored until IRC error replies are implemented.
-	return reply(client, "421", command.name + " :Unknown command\r\n");
-}
-
-bool Server::handleCap(Client &client, const Command &command)
-{
-	std::string subcommand;
-	if (!command.params.empty())
-		subcommand = command.params[0];
-	for (std::size_t i = 0; i < subcommand.size(); ++i)
-		subcommand[i] = std::toupper(static_cast<unsigned char>(subcommand[i]));
-
-	if (subcommand == "LS")
-	{
-		const char *response = ":localhost CAP * LS :\r\n";
-		if (!client.queueMessage(response))
-			return false;
-		std::cout << "----- QUEUED -----" << std::endl;
-		std::cout << response;
-		std::cout << "------------------" << std::endl;
-	}
-	return true;
+	return reply(client, "421", command.name + " :Unknown command");
 }
 
 static std::string foldNickname(std::string nickname)
@@ -125,20 +101,14 @@ bool Server::isNicknameAvailable(const std::string &nickname, int excludedFd) co
 
 bool Server::tryRegister(Client &client)
 {
-	if (client.isRegistered())
-		return false;
+	if (client.isRegistered() || !client.isPasswordAccepted()
+		|| client.getNickname().empty() || client.getUsername().empty())
+		return true;
 
-	if (!client.isPasswordAccepted())
+	if (!reply(client, "001", ":Welcome to the IRC Network"))
 		return false;
-
-	if (client.getNickname().empty())
-		return false;
-
-	if (client.getUsername().empty())
-		return false;
-
 	client.markRegistered();
-	return reply(client, "001", ":Welcome to the IRC Network");
+	return true;
 }
 
 bool Server::handlePass(Client &client, const Command &command)
@@ -151,8 +121,7 @@ bool Server::handlePass(Client &client, const Command &command)
 	client.setPasswordAccepted(_password.empty() || _password == command.params[0]);
 	if (!client.isPasswordAccepted())
 		return reply(client, "464", ":Password incorrect");
-	tryRegister(client);
-	return true;
+	return tryRegister(client);
 }
 
 bool Server::handleNick(Client &client, const Command &command)
@@ -166,8 +135,7 @@ bool Server::handleNick(Client &client, const Command &command)
 	if (!isNicknameAvailable(nickname, client.getFd()))
 		return reply(client, "433", nickname + " :Nickname is already in use");
 	client.setNickname(nickname);
-	tryRegister(client);
-	return true;
+	return tryRegister(client);
 }
 
 bool Server::handleUser(Client &client, const Command &command)
@@ -179,8 +147,7 @@ bool Server::handleUser(Client &client, const Command &command)
 	if (!isValidUsername(command.params[0]))
 		return reply(client, "461", "USER :Invalid username");
 	client.setUserInfo(command.params[0], command.params[3]);
-	tryRegister(client);
-	return true;
+	return tryRegister(client);
 }
 
 // Remaining commands will get their own implementation.
