@@ -40,6 +40,7 @@ class Server
 		int createSocket() const;
 		bool acceptClient();
 		void disconnectClient(int fd);
+		void clearClients() throw();
 		bool receiveFromClient(Client &client);
 		void sendToClient(Client &client);
 		bool reply(Client &client, const std::string &code,

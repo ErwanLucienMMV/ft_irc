@@ -41,6 +41,11 @@ irssi -c 127.0.0.1 -p 6667 -w secret -n alice
 The implemented channel modes are `i` (invite-only), `t` (operator-only topic),
 `k` (channel key), `o` (channel operator) and `l` (user limit).
 
+Usernames are limited to 12 characters. If memory allocation fails while the
+server is running, it closes existing client connections and clears channels
+to recover without allocating memory. The listening socket remains open;
+clients can reconnect once memory is available again.
+
 Clean generated files with `make clean` or `make fclean`. Use `make re` for a
 complete rebuild.
 

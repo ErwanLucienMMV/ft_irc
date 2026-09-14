@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <csignal>
 #include <set>
+#include <new>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -65,11 +66,23 @@ Server::Server(int port, const std::string &password)
 
 Server::~Server()
 {
+	clearClients();
+	if (_serverFd >= 0)
+		close(_serverFd);
+}
+
+void Server::clearClients() throw()
+{
+	// Recovery must not allocate or announce QUIT: memory may be exhausted.
 	for (std::map<int, Client>::const_iterator it = _clients.begin();
 		it != _clients.end(); ++it)
 		close(it->second.getFd());
+	_clients.clear();
+	_channels.clear();
+	FD_ZERO(&_master);
 	if (_serverFd >= 0)
-		close(_serverFd);
+		FD_SET(_serverFd, &_master);
+	_maxFd = _serverFd;
 }
 
 int Server::createSocket() const
@@ -314,25 +327,33 @@ bool Server::run()
 			return false;
 		}
 
-		for (int fd = 0; fd <= _maxFd && !stopRequested; ++fd)
+		try
 		{
-			if (!FD_ISSET(fd, &readfds) && !FD_ISSET(fd, &writefds))
-				continue;
-
-			if (fd == _serverFd)
+			for (int fd = 0; fd <= _maxFd && !stopRequested; ++fd)
 			{
-				if (!acceptClient())
-					return false;
-				continue;
+				if (!FD_ISSET(fd, &readfds) && !FD_ISSET(fd, &writefds))
+					continue;
+
+				if (fd == _serverFd)
+				{
+					if (!acceptClient())
+						return false;
+					continue;
+				}
+				std::map<int, Client>::iterator found = _clients.find(fd);
+				if (found == _clients.end())
+					continue;
+				Client &client = found->second;
+				if (FD_ISSET(fd, &readfds) && !receiveFromClient(client))
+					continue;
+				if (FD_ISSET(fd, &writefds))
+					sendToClient(client);
 			}
-			std::map<int, Client>::iterator found = _clients.find(fd);
-			if (found == _clients.end())
-				continue;
-			Client &client = found->second;
-			if (FD_ISSET(fd, &readfds) && !receiveFromClient(client))
-				continue;
-			if (FD_ISSET(fd, &writefds))
-				sendToClient(client);
+		}
+		catch (const std::bad_alloc &)
+		{
+			clearClients();
+			_acceptPaused = true;
 		}
 	}
 	return true;
