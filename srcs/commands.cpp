@@ -556,6 +556,8 @@ bool Server::handleMode(Client &client, const Command &command)
 	if (!channel->isOperator(client.getFd()))
 		return reply(client, "482", channel->getName() + " :You're not channel operator");
 
+	// Validate changes on a copy so an invalid mode leaves the channel intact.
+	Channel updated(*channel);
 	const std::string &modes = command.params[1];
 	bool adding = true;
 	std::size_t parameter = 2;
@@ -567,19 +569,19 @@ bool Server::handleMode(Client &client, const Command &command)
 			continue;
 		}
 		if (modes[i] == 'i')
-			channel->setInviteOnly(adding);
+			updated.setInviteOnly(adding);
 		else if (modes[i] == 't')
-			channel->setTopicRestricted(adding);
+			updated.setTopicRestricted(adding);
 		else if (modes[i] == 'k')
 		{
 			if (adding)
 			{
 				if (parameter >= command.params.size() || command.params[parameter].empty())
 					return reply(client, "461", "MODE :Not enough parameters");
-				channel->setKey(command.params[parameter++]);
+				updated.setKey(command.params[parameter++]);
 			}
 			else
-				channel->setKey("");
+				updated.setKey("");
 		}
 		else if (modes[i] == 'l')
 		{
@@ -590,10 +592,10 @@ bool Server::handleMode(Client &client, const Command &command)
 					|| !parseLimit(command.params[parameter], limit))
 					return reply(client, "461", "MODE :Invalid limit");
 				++parameter;
-				channel->setLimit(limit);
+				updated.setLimit(limit);
 			}
 			else
-				channel->setLimit(0);
+				updated.setLimit(0);
 		}
 		else if (modes[i] == 'o')
 		{
@@ -604,9 +606,9 @@ bool Server::handleMode(Client &client, const Command &command)
 				return reply(client, "441", command.params[parameter - 1] + " "
 					+ channel->getName() + " :They aren't on that channel");
 			if (adding)
-				channel->addOperator(target->getFd());
+				updated.addOperator(target->getFd());
 			else
-				channel->removeOperator(target->getFd());
+				updated.removeOperator(target->getFd());
 		}
 		else
 			return reply(client, "472", std::string(1, modes[i])
@@ -616,6 +618,7 @@ bool Server::handleMode(Client &client, const Command &command)
 	std::string message = clientPrefix(client) + " MODE " + channel->getName();
 	for (std::size_t i = 1; i < command.params.size(); ++i)
 		message += " " + command.params[i];
+	*channel = updated;
 	return broadcast(*channel, message, -1, client.getFd());
 }
 
