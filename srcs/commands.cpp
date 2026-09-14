@@ -381,9 +381,26 @@ bool Server::handlePong(Client &, const Command &)
 	return true;
 }
 
-bool Server::handleTopic(Client &, const Command &)
+bool Server::handleTopic(Client &client, const Command &command)
 {
-	return true;
+	if (command.params.empty())
+		return reply(client, "461", "TOPIC :Not enough parameters");
+	Channel *channel = findChannel(command.params[0]);
+	if (channel == NULL)
+		return reply(client, "403", command.params[0] + " :No such channel");
+	if (!channel->hasMember(client.getFd()))
+		return reply(client, "442", channel->getName() + " :You're not on that channel");
+	if (command.params.size() == 1)
+	{
+		if (channel->getTopic().empty())
+			return reply(client, "331", channel->getName() + " :No topic is set");
+		return reply(client, "332", channel->getName() + " :" + channel->getTopic());
+	}
+	if (channel->isTopicRestricted() && !channel->isOperator(client.getFd()))
+		return reply(client, "482", channel->getName() + " :You're not channel operator");
+	channel->setTopic(command.params[1]);
+	return broadcast(*channel, clientPrefix(client) + " TOPIC "
+		+ channel->getName() + " :" + channel->getTopic(), -1, client.getFd());
 }
 
 bool Server::handleInvite(Client &, const Command &)
