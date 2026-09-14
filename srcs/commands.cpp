@@ -530,6 +530,18 @@ bool Server::handleMode(Client &client, const Command &command)
 {
 	if (command.params.empty())
 		return reply(client, "461", "MODE :Not enough parameters");
+	if (command.params[0].empty()
+		|| (command.params[0][0] != '#' && command.params[0][0] != '&'))
+	{
+		if (foldName(command.params[0]) != foldName(client.getNickname()))
+			return reply(client, "502", ":Cannot change mode for other users");
+		if (command.params.size() == 1)
+			return reply(client, "221", "+");
+		if (command.params[1] != "+i" && command.params[1] != "-i")
+			return reply(client, "501", ":Unknown MODE flag");
+		return sendLine(client, clientPrefix(client) + " MODE "
+			+ client.getNickname() + " :" + command.params[1]);
+	}
 	Channel *channel = findChannel(command.params[0]);
 	if (channel == NULL)
 		return reply(client, "403", command.params[0] + " :No such channel");
@@ -621,22 +633,87 @@ bool Server::handleNames(Client &client, const Command &command)
 	return true;
 }
 
-bool Server::handleList(Client &, const Command &)
+bool Server::handleList(Client &client, const Command &command)
 {
-	return true;
+	if (!reply(client, "321", "Channel :Users Name"))
+		return false;
+	for (std::map<std::string, Channel>::const_iterator it = _channels.begin();
+		it != _channels.end(); ++it)
+	{
+		if (!command.params.empty()
+			&& foldName(command.params[0]) != foldName(it->second.getName()))
+			continue;
+		char count[32];
+		std::sprintf(count, "%lu",
+			static_cast<unsigned long>(it->second.getMembers().size()));
+		if (!reply(client, "322", it->second.getName() + " " + count
+			+ " :" + it->second.getTopic()))
+			return false;
+	}
+	return reply(client, "323", ":End of /LIST");
 }
 
-bool Server::handleWho(Client &, const Command &)
+static std::string whoFlags(const Channel *channel, int fd)
 {
-	return true;
+	if (channel != NULL && channel->isOperator(fd))
+		return "H@";
+	return "H";
 }
 
-bool Server::handleWhois(Client &, const Command &)
+bool Server::handleWho(Client &client, const Command &command)
 {
-	return true;
+	std::string mask = "*";
+	if (!command.params.empty())
+		mask = command.params[0];
+	Channel *channel = findChannel(mask);
+	if (channel != NULL)
+	{
+		for (std::set<int>::const_iterator it = channel->getMembers().begin();
+			it != channel->getMembers().end(); ++it)
+		{
+			std::map<int, Client>::const_iterator member = _clients.find(*it);
+			if (member == _clients.end())
+				continue;
+			const Client &shown = member->second;
+			if (!reply(client, "352", channel->getName() + " "
+				+ shown.getUsername() + " " + shown.getAddress()
+				+ " localhost " + shown.getNickname() + " "
+				+ whoFlags(channel, shown.getFd()) + " :0 " + shown.getRealname()))
+				return false;
+		}
+	}
+	else
+	{
+		Client *shown = findClient(mask);
+		if (shown != NULL && !reply(client, "352", "* " + shown->getUsername()
+			+ " " + shown->getAddress() + " localhost " + shown->getNickname()
+			+ " H :0 " + shown->getRealname()))
+			return false;
+	}
+	return reply(client, "315", mask + " :End of /WHO list");
 }
 
-bool Server::handleMotd(Client &, const Command &)
+bool Server::handleWhois(Client &client, const Command &command)
 {
-	return true;
+	if (command.params.empty())
+		return reply(client, "431", ":No nickname given");
+	Client *target = findClient(command.params[0]);
+	if (target == NULL)
+		return reply(client, "401", command.params[0] + " :No such nick");
+	if (!reply(client, "311", target->getNickname() + " " + target->getUsername()
+		+ " " + target->getAddress() + " * :" + target->getRealname()))
+		return false;
+	if (!reply(client, "312", target->getNickname()
+		+ " localhost :ft_irc server"))
+		return false;
+	return reply(client, "318", target->getNickname() + " :End of /WHOIS list");
+}
+
+bool Server::handleMotd(Client &client, const Command &)
+{
+	if (!reply(client, "375", ":- localhost Message of the day -"))
+		return false;
+	if (!reply(client, "372", ":- Welcome to ft_irc"))
+		return false;
+	return reply(client, "376", ":End of /MOTD command");
 }
