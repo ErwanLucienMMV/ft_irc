@@ -542,6 +542,19 @@ static std::string channelModes(const Channel &channel, bool showKey)
 	return modes + parameters;
 }
 
+static bool isValidChannelKey(const std::string &key)
+{
+	if (key.empty() || key.size() > 64)
+		return false;
+	for (std::size_t i = 0; i < key.size(); ++i)
+	{
+		const unsigned char c = static_cast<unsigned char>(key[i]);
+		if (c <= ' ' || c > '~' || c == ',' || c == ':')
+			return false;
+	}
+	return true;
+}
+
 bool Server::handleMode(Client &client, const Command &command)
 {
 	if (command.params.empty())
@@ -591,6 +604,8 @@ bool Server::handleMode(Client &client, const Command &command)
 			if (parameter >= command.params.size() || command.params[parameter].empty())
 				return reply(client, "461", "MODE :Not enough parameters");
 			const std::string &key = command.params[parameter++];
+			if (!isValidChannelKey(key))
+				return reply(client, "461", "MODE :Invalid channel key");
 			if (adding)
 				updated.setKey(key);
 			else

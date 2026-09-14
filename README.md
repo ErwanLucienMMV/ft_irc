@@ -48,6 +48,10 @@ Omit `-w secret` when connecting to a server started without a password.
 The implemented channel modes are `i` (invite-only), `t` (operator-only topic),
 `k` (channel key), `o` (channel operator) and `l` (user limit).
 
+Both `MODE #room +k secret` and `MODE #room -k secret` take a key argument.
+Channel keys contain 1 to 64 printable ASCII characters, excluding spaces,
+commas and colons.
+
 Usernames are limited to 12 characters. If memory allocation fails while the
 server is running, it closes existing client connections and clears channels
 to recover without allocating memory. The listening socket remains open;
