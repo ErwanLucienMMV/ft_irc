@@ -3,7 +3,8 @@ GREEN = \033[0;32m
 YELLOW = \033[0;33m
 RESET = \033[0m
 
-SRC = srcs/main.cpp srcs/server.cpp srcs/commands.cpp srcs/client.cpp srcs/parser.cpp
+SRC = srcs/main.cpp srcs/server.cpp srcs/commands.cpp srcs/client.cpp \
+	  srcs/channel.cpp srcs/parser.cpp
 
 NAME = ircserv
 
@@ -18,7 +19,7 @@ CXX = c++
 
 all	: $(NAME)
 
-$(OBJ): includes/server.hpp includes/client.hpp includes/parser.hpp
+$(OBJ): includes/server.hpp includes/client.hpp includes/channel.hpp includes/parser.hpp
 
 $(NAME)	: $(OBJ)
 	@echo "$(YELLOW)[$(NAME)] $(GREEN).o created $(RESET)"

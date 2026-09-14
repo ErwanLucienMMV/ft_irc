@@ -2,6 +2,7 @@
 #define SERVER_HPP
 
 #include "client.hpp"
+#include "channel.hpp"
 #include <map>
 #include <string>
 #include <sys/select.h>
@@ -33,6 +34,7 @@ class Server
 		int _maxFd;
 		fd_set _master;
 		std::map<int, Client> _clients;
+		std::map<std::string, Channel> _channels;
 
 		int createSocket() const;
 		bool acceptClient();
