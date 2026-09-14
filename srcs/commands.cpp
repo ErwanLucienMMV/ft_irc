@@ -37,7 +37,7 @@ bool Server::handleMessage(Client &client, const std::string &message)
 			return (this->*commands[i].handler)(client, command);
 	}
 	// Unknown commands are ignored until IRC error replies are implemented.
-	return true;
+	return reply(client, "421", command.name + " :Unknown command\r\n");
 }
 
 bool Server::handleCap(Client &client, const Command &command)
