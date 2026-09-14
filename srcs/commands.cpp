@@ -508,7 +508,7 @@ static bool parseLimit(const std::string &text, std::size_t &limit)
 	return limit != 0;
 }
 
-static std::string channelModes(const Channel &channel)
+static std::string channelModes(const Channel &channel, bool showKey)
 {
 	std::string modes = "+";
 	std::string parameters;
@@ -517,7 +517,7 @@ static std::string channelModes(const Channel &channel)
 	if (!channel.getKey().empty())
 	{
 		modes += "k";
-		parameters += " " + channel.getKey();
+		parameters += " " + (showKey ? channel.getKey() : "*");
 	}
 	if (channel.getLimit() != 0)
 	{
@@ -549,7 +549,8 @@ bool Server::handleMode(Client &client, const Command &command)
 	if (channel == NULL)
 		return reply(client, "403", command.params[0] + " :No such channel");
 	if (command.params.size() == 1)
-		return reply(client, "324", channel->getName() + " " + channelModes(*channel));
+		return reply(client, "324", channel->getName() + " "
+			+ channelModes(*channel, channel->hasMember(client.getFd())));
 	if (!channel->hasMember(client.getFd()))
 		return reply(client, "442", channel->getName() + " :You're not on that channel");
 	if (!channel->isOperator(client.getFd()))
