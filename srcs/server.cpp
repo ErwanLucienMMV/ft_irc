@@ -183,6 +183,15 @@ bool Server::acceptClient()
 void Server::disconnectClient(int fd)
 {
 	std::cout << "Client disconnected (fd " << fd << ")" << std::endl;
+	for (std::map<std::string, Channel>::iterator it = _channels.begin();
+		it != _channels.end();)
+	{
+		it->second.removeMember(fd);
+		if (it->second.isEmpty())
+			_channels.erase(it++);
+		else
+			++it;
+	}
 	close(fd);
 	FD_CLR(fd, &_master);
 	_clients.erase(fd);

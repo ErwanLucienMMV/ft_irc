@@ -43,6 +43,12 @@ class Server
 		void sendToClient(Client &client);
 		bool reply(Client &client, const std::string &code,
 			const std::string &parameters);
+		bool sendLine(Client &client, const std::string &message);
+		bool broadcast(Channel &channel, const std::string &message,
+			int exceptFd, int senderFd);
+		bool sendNames(Client &client, const Channel &channel);
+		std::string clientPrefix(const Client &client) const;
+		Channel *findChannel(const std::string &name);
 		bool isNicknameAvailable(const std::string &nickname, int excludedFd) const;
 		bool handleMessage(Client &client, const std::string &message);
 		bool tryRegister(Client &client);
